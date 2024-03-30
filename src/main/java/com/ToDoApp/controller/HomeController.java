@@ -12,15 +12,18 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import javax.servlet.http.HttpSession;
 import javax.sql.DataSource;
-import com.ToDoApp.dao.UserDAO;
+
+import com.ToDoApp.dao.TodolistDAO;
+import com.ToDoApp.model.Todolist;
 import com.ToDoApp.model.User;
+
 
 @WebServlet("/Home")
 public class HomeController extends HttpServlet {
 	
 	private static final long serialVersionUID = 1L;
        
-	private UserDAO userDAO;
+	private TodolistDAO todolistDAO;
   
 	@Resource(name="jdbc/to_do_app")
 	private DataSource dataSource;
@@ -30,7 +33,7 @@ public class HomeController extends HttpServlet {
 		super.init();
 		
 		try {			
-			userDAO = new UserDAO(dataSource);
+			todolistDAO = new TodolistDAO(dataSource);
 		} catch (Exception e) {
 			throw new ServletException(e);
 		}
@@ -48,22 +51,65 @@ public class HomeController extends HttpServlet {
 		try {
 			HttpSession session = request.getSession(); 
 			User user = (User)session.getAttribute("user");
-			if(user == null)
+			if(user == null) {
 				response.sendRedirect(request.getContextPath() +  "/Authentication");
-			else 
-				listUser(request, response);
+				return;
+			}			
+			String action = request.getParameter("ACTION");
+			if(action == null) action = "LIST";
+			
+			switch (action) {
+			case "LIST":
+				listTask(request,response);
+				break;
+			case "ADD":
+				addTask(request,response);
+				break;
+			case "DELETE":
+				deleteTask(request,response);
+				break;	
+			default:
+				break;
+			}
 		}
 		catch(Exception e) {
 			throw new ServletException(e);
 		}
 	}
 
-	private void listUser(HttpServletRequest request, HttpServletResponse response) throws Exception {
+	private void deleteTask(HttpServletRequest request, HttpServletResponse response) throws Exception {
+		int id = Integer.parseInt(request.getParameter("id")); 
+		
+		todolistDAO.deleteTask(id);
+		
+		listTask(request,response);
+		
+	}
+
+	private void addTask(HttpServletRequest request, HttpServletResponse response) throws Exception {
+		HttpSession session = request.getSession(); 
+		User user = (User)session.getAttribute("user");
+		
+		String task =(String) request.getParameter("new-task-input");
+		Todolist todolist = new Todolist(user.getUserId(),task,0);
+		
+		todolistDAO.addTask(todolist);
+		
+		
+		// send to JSP page (view)
+		listTask(request,response);
+		
+	}
+
+	private void listTask(HttpServletRequest request, HttpServletResponse response) throws Exception {
+					HttpSession session = request.getSession(); 
+					User user = (User)session.getAttribute("user");
+					List<Todolist> listTasks = todolistDAO.getAllTasks(user.getUserId());
 					
-					List<User> users = userDAO.getAllsUsers();
+					request.setAttribute("user", user);
 					
 					// add students to the request
-					request.setAttribute("USER_LIST", users);
+					request.setAttribute("LIST_TASK", listTasks);
 					
 					// send to JSP page (view)
 					RequestDispatcher dispatcher = request.getRequestDispatcher("/home.jsp");
